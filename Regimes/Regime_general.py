@@ -41,10 +41,11 @@ class RegimeGeneral(RegimeBase):
         
         for trim in ['cot', 'ass', 'avpf']: 
             output['trim_' + trim + '_' + self.regime] = self._get_trim(trim, workstate, sali)
+        output['trim_tot_' + self.regime] = sum(output.values())
             
         output['sal_RG'] = self.sali_for_regime(sali, output['nb_trim_cot'])
         output['sal_avpf_RG'] = self.sal_avpf(workstate, sali)
-        output['trim_tot_RG'] = sum(output['trim_cot_RG'] + output['trim_ass_RG'] + output['trim_maj_RG'])
+        
         if to_check is not None:
             to_check['DA_RG'] = output['trim_tot_RG']/4
         return output

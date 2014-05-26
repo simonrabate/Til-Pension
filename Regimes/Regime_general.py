@@ -32,21 +32,19 @@ class RegimeGeneral(RegimeBase):
         self.code_regime = [3,4]
         self.param_name = 'prive.RG'
      
+    def _get_trim(self, func_name, workstate, sali):
+        nb_trim = eval('self.nb_trim_' + func_name + '(workstate, sali)')
+        return nb_trim.array.sum(axis=1)
      
     def get_trimester(self, workstate, sali, info_ind, to_check=False):
         output = dict()
-        nb_trim_cot = self.nb_trim_cot(workstate, sali)
-        output['trim_cot_RG']  = nb_trim_cot.array.sum(axis=1)
-        output['sal_RG'] = self.sali_for_regime(sali, nb_trim_cot)
-        nb_trim_ass = self.nb_trim_ass(workstate, nb_trim_cot)
-        output['trim_ass_RG'] = nb_trim_ass.array.sum(axis=1)
-        sal_for_avpf = self.sal_avpf(workstate,sali)
-        output['sal_avpf_RG'] = sal_for_avpf
-        nb_trim_avpf = self.nb_trim_avpf(sal_for_avpf)
-        output['trim_maj_RG'] = self.nb_trim_maj(info_ind, nb_trim_avpf)
         
-        output['trim_by_year_RG'] = nb_trim_cot.add(nb_trim_avpf).add(nb_trim_ass)
-        output['trim_tot_RG'] = output['trim_cot_RG'] + output['trim_ass_RG'] + output['trim_maj_RG']
+        for trim in ['cot', 'ass', 'avpf']: 
+            output['trim_' + trim + '_' + self.regime] = self._get_trim(trim, workstate, sali)
+            
+        output['sal_RG'] = self.sali_for_regime(sali, output['nb_trim_cot'])
+        output['sal_avpf_RG'] = self.sal_avpf(workstate, sali)
+        output['trim_tot_RG'] = sum(output['trim_cot_RG'] + output['trim_ass_RG'] + output['trim_maj_RG'])
         if to_check is not None:
             to_check['DA_RG'] = output['trim_tot_RG']/4
         return output

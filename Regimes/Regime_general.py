@@ -147,6 +147,17 @@ class RegimeGeneral(RegimeBase):
             
         nb_trim_avpf = trim_avpf_by_year.array.sum(1)
         return array(nb_trim_mda + nb_trim_avpf)
+
+    def _sali_for_salref(self, regime, first_year_sal):
+        ''' construit la matrice des salaires de références '''
+        # TODO: check if annual step in sal_avpf and sal_RG
+        sal_RG = regime['sal']
+        sal_avpf = regime['sal_avpf']
+        sali_to_RG = regime['sali_FP_to']
+        first_ix_avpf = first_year_avpf - first_year_sal
+        sal_RG.array[:,first_ix_avpf:] += sal_avpf.array
+        sal_RG.array += sali_to_RG.array
+        return TimeArray(sal_RG.array.round(2), sal_RG.dates)
     
     def calculate_salref(self, workstate, sali, regime):
         ''' SAM : Calcul du salaire annuel moyen de référence : 
@@ -161,7 +172,7 @@ class RegimeGeneral(RegimeBase):
         for i in range(1, len(revalo)) :
             revalo[:i] *= revalo[i]
             
-        def _sali_for_salref(sal_RG, sal_avpf, sali_to_RG):
+        def _sali_for_salref(sal_RG, sal_avpf, sali_to_RG, first_year_sal):
             ''' construit la matrice des salaires de références '''
             # TODO: check if annual step in sal_avpf and sal_RG
             first_ix_avpf = first_year_avpf - first_year_sal
@@ -170,7 +181,7 @@ class RegimeGeneral(RegimeBase):
             return TimeArray(sal_RG.array.round(2), sal_RG.dates)
 
         #TODO: d'ou vient regime['sal'] -> il vient de du calcul du nb de trim cotisés au RG (condition sur workstate + salaire plancher)
-        sal_regime = _sali_for_salref(regime['sal'], regime['sal_avpf'], regime['sali_FP_to'])
+        sal_regime = self.sali_for_salref(regime)
         sal_regime.translate_frequency(output_frequency='year', method='sum', inplace=True)
         years_sali = (sal_regime.array != 0).sum(1)
         nb_best_years_to_take = array(nb_best_years_to_take)

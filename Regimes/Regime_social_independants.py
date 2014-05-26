@@ -44,12 +44,22 @@ class RegimeSocialIndependants(RegimeGeneral):
         output['trim_by_year_RSI'] = trim_by_year
         return output
     
+    
+    def _sali_for_salref(self, sal_RG, sal_avpf, sali_to_RG, first_year_sal):
+        ''' construit la matrice des salaires de références '''
+        # TODO: check if annual step in sal_avpf and sal_RG
+        first_ix_avpf = first_year_avpf - first_year_sal
+        sal_RG.array[:,first_ix_avpf:] += sal_avpf.array
+        sal_RG.array += sali_to_RG.array
+        return sal_regime.array*workstate.isin(self.code_regime).array
+    
+    
     def calculate_salref(self, workstate, sali, regime):
         ''' RAM : Calcul du revenu annuel moyen de référence : 
         notamment application du plafonnement à un PSS'''
         yearsim = self.yearsim
         P = reduce(getattr, self.param_indep.split('.'), self.P)
-        nb_best_years_to_take = P.nb_ram
+        nb_best_years_to_take = P.nb_ram #change name
         if compare_destinie == True:
             P = reduce(getattr, self.param_name.split('.'), self.P)
             nb_best_years_to_take = P.nb_sam
@@ -77,5 +87,9 @@ class RegimeSocialIndependants(RegimeGeneral):
         salref = sal_regime.best_dates_mean(nb_best_years_to_take)
         return salref.round(2)
 
-        
-            
+
+
+
+        #TODO: d'ou vient regime['sal'] -> il vient de du calcul du nb de trim cotisés au RG (condition sur workstate + salaire plancher)
+        sal_regime = _sali_for_salref(regime['sal'], regime['sal_avpf'], regime['sali_FP_to'])
+          

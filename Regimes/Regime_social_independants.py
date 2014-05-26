@@ -32,17 +32,16 @@ class RegimeSocialIndependants(RegimeGeneral):
         output = dict()
         work = workstate.selected_dates(first=first_year_indep)
         sal = sali.selected_dates(first=first_year_indep)
-        nb_trim_cot = self.nb_trim_cot(work, sal)
-        output['trim_cot_RSI']  = nb_trim_cot.array.sum(axis=1)
-        nb_trim_ass = self.nb_trim_ass(work, nb_trim_cot)
-        output['trim_ass_RSI'] = nb_trim_ass.array.sum(axis=1)
-        nb_trim_cot.add(nb_trim_ass)
+        
+        for trim in ['cot', 'ass']: 
+            output['trim_' + trim + '_' + self.regime] = self._get_trim(trim, workstate, sali)
+        output['trim_tot_' + self.regime] = sum(output.values())
+
         trim_by_year = workstate.translate_frequency('year')
         first_year_sal = min(sali.dates) // 100
         trim_by_year.array[:, : first_year_indep - first_year_sal] = 0
-        trim_by_year.array[:, first_year_indep - first_year_sal :] = nb_trim_cot.array
+        trim_by_year.array[:, first_year_indep - first_year_sal :] = output['nb_trim_cot'].array
         output['trim_by_year_RSI'] = trim_by_year
-        output['trim_tot_RSI'] = output['trim_cot_RSI'] + output['trim_ass_RSI']
         return output
     
     def calculate_salref(self, workstate, sali, regime):

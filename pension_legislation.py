@@ -12,10 +12,10 @@ from Param import legislations_add_pension as legislations
 from Param import legislationsxml_add_pension as  legislationsxml
 from openfisca_core import conv
 
-from France.dates_start import dates_start
 from Regimes.Fonction_publique import FonctionPublique
 from Regimes.Regimes_complementaires_prive import AGIRC, ARRCO
 from Regimes.Regimes_prives import RegimeGeneral, RegimeSocialIndependants
+from regime import compare_destinie
 
 def build_long_values(param_long, first, last, time_scale='year'):   
     ''' Cette fonction permet de traduire les paramètres longitudinaux en vecteur numpy 
@@ -111,8 +111,10 @@ class PensionParam(object):
         # de 1949 à 1972 -> AVTS, après jusqu'en 2014, 200 fois le smic horaire de la première année, ensuite 150 fois.
         param_long = self.param_long
         smic = param_long.common.smic
-        smic_key = sorted(smic.keys())
         avts = param_long.common.avts.montant
+        if compare_destinie == True:
+            smic = dict((key,val / (52*35)) for key, val in param_long.common.smic_proj.iteritems())
+        smic_key = sorted(smic.keys())
         avts_key = sorted(avts.keys())
         debut_annee = '-01-01'
         
@@ -124,6 +126,8 @@ class PensionParam(object):
             while avts_key[k+1] <= date:
                 k +=1
             salref[date] = avts[avts_key[k]]/4
+            if compare_destinie == True:
+                salref[date] = 1
             year += 1           
             
         k = -1 
@@ -163,7 +167,6 @@ class PensionLegislation(object):
         self.regimes = dict(
                             bases = [RegimeGeneral(), FonctionPublique(), RegimeSocialIndependants()],
                             complementaires = [ARRCO(), AGIRC()],
-                            base_to_complementaire = {'RG': ['arrco', 'agirc'], 'FP': []}
                             )
         self.date = param.date
             
@@ -178,7 +181,9 @@ class PensionLegislation(object):
         for param_name in ['common.plaf_ss', 'prive.RG.revalo','common.smic_proj','common.avpf', 
                             'prive.RG.surcote.dispositif1.dates1','prive.RG.surcote.dispositif1.dates2',
                             'prive.RG.surcote.dispositif2.dates', 'public.fp.surcote.dates',
-                            'prive.RG.salref']:
+                            'prive.RG.salref', 'public.fp.val_point', 
+                            'prive.complementaire.agirc.maj_enf.born.dispositif0.dates', 'prive.complementaire.agirc.maj_enf.born.dispositif1.dates',
+                            'prive.complementaire.arrco.maj_enf.born.dispositif0.dates', 'prive.complementaire.arrco.maj_enf.born.dispositif1.dates']:
             param_name = param_name.split('.')
             param = reduce(getattr, param_name, P_longit)
             param = build_long_values(param_long=param, first=first_year_sim, last=last_year_sim)
@@ -201,7 +206,6 @@ class PensionLegislation(object):
 
 
 if __name__ == '__main__':
-    from pandas import DataFrame
     from pension_data import PensionData
     import datetime
     

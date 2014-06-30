@@ -4,12 +4,12 @@ import os
 parentdir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.sys.path.insert(0,parentdir) 
 
-from numpy import maximum, minimum, divide, zeros
+from numpy import array, maximum, minimum, divide, zeros
 
 from regime import RegimeBase
-from trimesters_functions import nb_trim_surcote
+from trimesters_functions import nb_trim_surcote, nb_trim_decote
 from trimesters_functions import trim_cot_by_year_FP, nb_trim_bonif_5eme, trim_mda
-
+from regime import compare_destinie
 code_chomage = 5
 
 class FonctionPublique(RegimeBase):
@@ -37,7 +37,7 @@ class FonctionPublique(RegimeBase):
         wages['cot'] = sal_regime.subtract(sal_to_RG)
         trim_cotises = trimesters['cot'].sum(1)
         P_mda = self.P.public.fp.mda
-        trim_maj['DA'] = trim_mda(info_ind, P_mda)*(trim_cotises>0)
+        trim_maj['DA'] = trim_mda(info_ind, self.name, P_mda)*(trim_cotises>0)
         trim_maj['5eme'] = nb_trim_bonif_5eme(trim_cotises)*(trim_cotises>0)
         to_other['RG'] = {'trimesters': {'cot_FP' : trim_to_RG}, 'wages': {'sal_FP' : sal_to_RG}}
         output = {'trimesters': trimesters, 'wages': wages, 'maj': trim_maj}
@@ -85,7 +85,7 @@ class FonctionPublique(RegimeBase):
         trimesters = trim_wage_regime['trimesters']
         trim_maj = trim_wage_regime['maj']
         N_CP = P.plein.n_trim
-        trim_regime = trimesters['regime'].sum(1)
+        trim_regime = trimesters['regime'].sum() 
         trim_bonif_5eme = trim_maj['5eme']
         CP_5eme = minimum(divide(trim_regime + trim_bonif_5eme, N_CP), 1)
         
@@ -93,19 +93,30 @@ class FonctionPublique(RegimeBase):
         taux_bonif = P.taux_bonif
         trim_bonif_CPCM = trim_maj['DA'] # CPCM
         CP_CPCM = minimum(divide(maximum(trim_regime, N_CP) + trim_bonif_CPCM, N_CP), divide(taux_bonif, taux))
-        
+        if compare_destinie == True:
+            return minimum(divide(trim_regime + trim_bonif_CPCM, N_CP),1)
         return maximum(CP_5eme, CP_CPCM)
-
-    def decote(self, data, trim_wage_all):
+    
+    def age_annulation_decote(self, data):
+        ''' Détermination de l'âge d'annulation de la décote '''
+        P = reduce(getattr, self.param_name.split('.'), self.P)
+        
+        if P.decote.taux == 0:
+            # le dispositif n'existe pas encore
+            return self._age_min_retirement(data)
+        else:
+            age_max = self._build_age_max(data)
+            return maximum(age_max - P.decote.age_null,0).replace(0,999)
+    
+    def trim_decote(self, data, trim_wage_all):
         ''' Détermination de la décote à appliquer aux pensions '''
         trimesters = trim_wage_all['trimesters']
         trim_maj = trim_wage_all['maj']
         P = reduce(getattr, self.param_name.split('.'), self.P)
         if P.decote.nb_trim_max !=0:
             agem = data.info_ind['agem']
-            trim_decote = self.nb_trim_decote(trimesters, trim_maj, agem)
-            P = reduce(getattr, self.param_name.split('.'), self.P)
-            return P.decote.taux*trim_decote
+            trim_decote = nb_trim_decote(trimesters, trim_maj, agem, P)
+            return trim_decote
         else:
             return zeros(data.info_ind.shape[0])
         
@@ -125,20 +136,16 @@ class FonctionPublique(RegimeBase):
         last_fp_idx = data.workstate.idx_last_time_in(self.code_regime)
         last_fp = zeros(data.sali.array.shape[0])
         last_fp[last_fp_idx[0]] = data.sali.array[last_fp_idx]
-        return last_fp
+        taux_prime = data.info_ind['tauxprime']
+        P_long = reduce(getattr, self.param_name.split('.'), self.P_longit)
+        P = reduce(getattr, self.param_name.split('.'), self.P)
+        val_point = P_long.val_point 
+        val_point_last_fp = zeros(data.sali.array.shape[0])
+        val_point_last_fp[last_fp_idx[0]] = array([val_point[date_last] for date_last in last_fp_idx[1]])
+        val_point_t = P.val_point
+        coeff_revalo = val_point_t/val_point_last_fp
+        return last_fp*coeff_revalo/(taux_prime + 1)
 
-    def majoration_pension(self, data, pension):
-        P = self.P.public.fp
-        nb_enf = data.info_ind['nb_born']
-        
-        def _taux_enf(nb_enf, P):
-            ''' Majoration pour avoir élevé trois enfants '''
-            taux_3enf = P.maj_3enf.taux
-            taux_supp = P.maj_3enf.taux_sup
-            return taux_3enf*(nb_enf == 3) + taux_supp*maximum(nb_enf - 3, 0)
-            
-        maj_enf = _taux_enf(nb_enf, P)*pension
-        return maj_enf
     
     def plafond_pension(self, pension_brute, salref, cp, surcote):
         return pension_brute
